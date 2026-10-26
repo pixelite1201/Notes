@@ -112,6 +112,8 @@ button{cursor:pointer}
 .items{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:3px}
 .items li{display:flex;gap:8px;align-items:flex-start}
 .items li.done span{text-decoration:line-through;color:var(--muted)}
+.items li.lv1,.ilist li.lv1{margin-left:26px}
+.ilist li.dragging-lv{transition:none}
 .tick{flex:none;width:18px;height:18px;margin-top:2px;border:1.6px solid var(--muted);border-radius:5px;background:none;display:grid;place-items:center;padding:0;color:var(--accent-fg)}
 .tick .ic{width:12px;height:12px;stroke-width:2.6;opacity:0}
 .tick.on{background:var(--accent);border-color:var(--accent)}
@@ -184,7 +186,8 @@ button{cursor:pointer}
 .itxro.done{text-decoration:line-through;color:var(--muted)}
 .saved{font-size:.8rem;color:var(--muted)}
 .foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;position:sticky;bottom:0;background:var(--card,var(--c-default));padding:10px 0 calc(12px + env(safe-area-inset-bottom,0px))}
-.more{display:flex;flex-direction:column;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
+.more{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--fg) 6%,transparent)}
+#eMoreBtn[aria-expanded="true"]{background:var(--accent);color:var(--accent-fg)}
 .mact{display:flex;flex-wrap:wrap;gap:8px}
 .sheet .textbtn{background:color-mix(in srgb,var(--fg) 8%,transparent);border-color:transparent;display:inline-flex;align-items:center;gap:6px}
 .sheet .textbtn[aria-pressed="true"]{color:var(--accent)}
@@ -258,16 +261,10 @@ span.mir .mi{white-space:pre}
 <div id="sheet" class="overlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note" id="sheetBox">
     <div class="row1">
+      <button id="eBack" class="ibtn" type="button" aria-label="Back to all notes"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <input id="eTitle" class="title" type="text" placeholder="Title" maxlength="120" autocomplete="off">
       <button id="eMoreBtn" class="ibtn" type="button" aria-expanded="false" aria-controls="eMore" aria-label="More options"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/></svg></button>
     </div>
-    <div id="eBodyW" class="mw"><div id="eBodyM" class="mir" aria-hidden="true"></div><textarea id="eBody" placeholder="Write something…" aria-label="Note text"></textarea></div>
-    <div id="eListWrap" hidden>
-      <div id="eSelBar" class="selbar" hidden><button id="eSelAll" class="textbtn" type="button">Select all</button><button id="eSelCopy" class="textbtn" type="button" disabled>Copy selected</button><button id="eSelCancel" class="textbtn" type="button">Cancel</button></div>
-      <ul id="eItems" class="ilist"></ul>
-      <button id="eAdd" class="addline" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
-    </div>
-    <div id="eRel" class="rel" hidden></div>
     <div id="eMore" class="more" hidden>
       <div class="field"><span class="lbl" id="colLbl">Colour</span><div id="eSwatches" class="swatches" role="radiogroup" aria-labelledby="colLbl"></div></div>
       <div class="mact">
@@ -280,8 +277,15 @@ span.mir .mi{white-space:pre}
         <button id="eTrash" class="textbtn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5"/></svg>Delete</button>
       </div>
     </div>
+    <div id="eBodyW" class="mw"><div id="eBodyM" class="mir" aria-hidden="true"></div><textarea id="eBody" placeholder="Write something…" aria-label="Note text"></textarea></div>
+    <div id="eListWrap" hidden>
+      <div id="eSelBar" class="selbar" hidden><button id="eSelAll" class="textbtn" type="button">Select all</button><button id="eSelCopy" class="textbtn" type="button" disabled>Copy selected</button><button id="eSelCancel" class="textbtn" type="button">Cancel</button></div>
+      <ul id="eItems" class="ilist"></ul>
+      <button id="eAdd" class="addline" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+    </div>
+    <div id="eRel" class="rel" hidden></div>
     <div id="lpick" class="lpick" role="listbox" aria-label="Link to a note" hidden></div>
-    <div class="foot"><span id="eSaved" class="saved" aria-live="polite"></span><button id="eDone" class="done-btn" type="button">Done</button></div>
+    <div class="foot"><span id="eSaved" class="saved" aria-live="polite"></span></div>
   </div>
 </div>
 <div id="toast" class="toast" role="status" hidden></div>
@@ -313,12 +317,13 @@ function uid(){return "n"+Date.now().toString(36)+Math.random().toString(36).sli
 
 var notes=[], view="notes", query="", draft=null, orig="", isNew=false;
 var dbCol=null, synced=false, failed=false;
-var expanded=new Set();
+var collapsed=new Set();
+function isOpen(id){return !collapsed.has(id)}
 var selMode=false, selSet=new Set();
 
 function norm(n){
   return {id:String(n.id),title:n.title||"",body:n.body||"",type:n.type==="list"?"list":"text",
-    items:Array.isArray(n.items)?n.items.map(function(i){return {t:String(i.t||""),done:!!i.done}}):[],
+    items:Array.isArray(n.items)?n.items.map(function(i){return {t:String(i.t||""),done:!!i.done,lvl:+i.lvl===1?1:0}}):[],
     color:COLORS.indexOf(n.color)>-1?n.color:"default",
     gid:n.gid?String(n.gid):"",gpos:+n.gpos||0,
     pinned:!!n.pinned,archived:!!n.archived,trashed:!!n.trashed,
@@ -417,7 +422,7 @@ function actsHTML(n){
   return h+'</div>';
 }
 function cardHTML(n,opt){opt=opt||{};
-  var open=expanded.has(n.id);
+  var open=isOpen(n.id);
   var h='<article class="card c-'+n.color+(open?' open':' closed')+(opt.span?' span':'')+'" data-id="'+esc(n.id)+'" tabindex="0" aria-expanded="'+open+'">';
   var sub='';
   if(!open){
@@ -428,7 +433,7 @@ function cardHTML(n,opt){opt=opt||{};
   if(open){
     if(n.type==="list"){
       h+='<ul class="items">'+n.items.map(function(it,i){
-        return '<li class="'+(it.done?"done":"")+'"><button type="button" class="tick '+(it.done?"on":"")+'" data-act="tick" data-i="'+i+'" role="checkbox" aria-checked="'+it.done+'" aria-label="'+esc(it.t||"Item")+'">'+ic("check")+'</button><span>'+linkify(it.t)+'</span></li>';
+        return '<li class="'+(it.done?"done":"")+(it.lvl?" lv1":"")+'"><button type="button" class="tick '+(it.done?"on":"")+'" data-act="tick" data-i="'+i+'" role="checkbox" aria-checked="'+it.done+'" aria-label="'+esc(it.t||"Item")+'">'+ic("check")+'</button><span>'+linkify(it.t)+'</span></li>';
       }).join('')+'</ul>';
     }else if(n.body)h+='<p class="body">'+linkify(n.body)+'</p>';
     if(!opt.inGroup)h+=actsHTML(n);
@@ -496,16 +501,16 @@ function renameRefs(oldT,newT,exceptId){
   });
 }
 function snippet(n){
-  if(n.type==="list")return n.items.filter(function(i){return i.t.trim()}).map(function(i){return (i.done?"✓ ":"○ ")+i.t.replace(LINK_RE,"$1")}).join("\n");
+  if(n.type==="list")return n.items.filter(function(i){return i.t.trim()}).map(function(i){return ind(i)+(i.done?"✓ ":"○ ")+i.t.replace(LINK_RE,"$1")}).join("\n");
   var b=(n.body||"").trim().replace(LINK_RE,"$1");
   return n.title.trim()?b:b.split("\n").slice(1).join("\n");
 }
 /* a group is a fixed-size rectangle; its notes share that space, an open note takes the room of its row and scrolls inside */
 function groupHTML(t){
   var ms=t.notes,rows=[],cur=[];
-  var openN=ms.filter(function(n){return expanded.has(n.id)}).length;
+  var openN=ms.filter(function(n){return isOpen(n.id)}).length;
   ms.forEach(function(n){
-    if(openN===1&&expanded.has(n.id)){if(cur.length){rows.push({m:cur,open:false});cur=[]}rows.push({m:[n],open:true})}
+    if(openN===1&&isOpen(n.id)){if(cur.length){rows.push({m:cur,open:false});cur=[]}rows.push({m:[n],open:true})}
     else{cur.push(n);if(cur.length===2){rows.push({m:cur,open:false});cur=[]}}
   });
   if(cur.length)rows.push({m:cur,open:false});
@@ -529,7 +534,7 @@ function render(){
   var parts=[];if(view!=="notes")parts.push(VIEWNAME[view]);if(query.trim())parts.push("“"+query.trim()+"”");
   var pill=$("#pill");pill.hidden=!parts.length;
   if(parts.length)pill.innerHTML=esc(parts.join(" · "))+ic("x");
-  var anyOpen=list.some(function(n){return expanded.has(n.id)});
+  var anyOpen=list.some(function(n){return isOpen(n.id)});
   $("#openAll").textContent=anyOpen?"Close all":"Open all";
   $("#openAll").hidden=!list.length;
   if(!list.length){
@@ -546,7 +551,7 @@ function render(){
   $("#board").innerHTML=h;
 }
 function toggle(id,refocus){
-  if(expanded.has(id))expanded.delete(id);else expanded.add(id);
+  if(collapsed.has(id))collapsed.delete(id);else collapsed.add(id);
   render();
   if(refocus){var c=document.querySelector('.card[data-id="'+id+'"]');if(c)c.focus()}
 }
@@ -708,8 +713,8 @@ $("#menuBtn").onclick=function(){setMenu($("#menu").hidden)};
 document.addEventListener("click",function(e){if(!$("#menu").hidden&&!e.target.closest(".menuwrap"))setMenu(false)});
 $("#openAll").onclick=function(){
   var list=visible();
-  if(list.some(function(n){return expanded.has(n.id)})){expanded.clear()}
-  else list.forEach(function(n){expanded.add(n.id)});
+  if(list.some(function(n){return isOpen(n.id)})){list.forEach(function(n){collapsed.add(n.id)})}
+  else list.forEach(function(n){collapsed.delete(n.id)});
   render();
 };
 $("#pill").onclick=function(){view="notes";query="";$("#q").value="";render()};
@@ -728,7 +733,9 @@ $("#fab").onclick=function(){openEditor(blank("text"),true)};
 function blank(type){
   return norm({id:uid(),type:type,items:type==="list"?[{t:"",done:false}]:[]});
 }
+var hist=false, selfBack=false;
 function openEditor(n,fresh){
+  if(!hist){try{history.pushState({ll:1},"");hist=true}catch(e){}}
   draft=snapshot(n);orig=JSON.stringify(draft);isNew=fresh;
   $("#eTitle").value=draft.title;$("#eBody").value=draft.body;
   $("#eMore").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
@@ -907,17 +914,20 @@ function updateSelBar(){
   $("#eSelCopy").disabled=!n;$("#eSelCopy").textContent=n?"Copy selected ("+n+")":"Copy selected";
   $("#eSelAll").textContent=all?"Clear":"Select all";
 }
+function fixLv(a){if(a.length&&a[0].lvl)a[0].lvl=0}
+function ind(it){return it.lvl?"  ":""}
 function paintItems(focus){
+  fixLv(draft.items);
   scheduleSave();
   if(selMode){
     $("#eItems").innerHTML=draft.items.map(function(it,i){
       var on=selSet.has(i);
-      return '<li class="sel'+(on?' picked':'')+'" data-i="'+i+'"><button type="button" class="selbox" role="checkbox" aria-checked="'+on+'" aria-label="Select item">'+ic("check")+'</button><span class="itxro'+(it.done?' done':'')+'">'+esc(it.t)+'</span></li>';
+      return '<li class="sel'+(on?' picked':'')+(it.lvl?' lv1':'')+'" data-i="'+i+'"><button type="button" class="selbox" role="checkbox" aria-checked="'+on+'" aria-label="Select item">'+ic("check")+'</button><span class="itxro'+(it.done?' done':'')+'">'+esc(it.t)+'</span></li>';
     }).join('');
     updateSelBar();return;
   }
   $("#eItems").innerHTML=draft.items.map(function(it,i){
-    return '<li data-i="'+i+'"><span class="grip" title="Drag to reorder" aria-hidden="true">'+ic("grip")+'</span><button type="button" class="tick '+(it.done?'on':'')+'" data-a="tick" role="checkbox" aria-checked="'+it.done+'" aria-label="Mark done">'+ic("check")+'</button><span class="mw iw"><span class="mir'+(it.done?' done':'')+'" aria-hidden="true"><span class="mi">'+mirrorHTML(it.t)+'</span></span><input class="itxt'+(it.done?' done':'')+'" type="text" value="'+esc(it.t)+'" placeholder="List item" aria-label="List item"></span><button type="button" class="ibtn" data-a="rm" aria-label="Remove item" style="width:28px;height:28px">'+ic("x")+'</button></li>';
+    return '<li data-i="'+i+'"'+(it.lvl?' class="lv1"':'')+'><span class="grip" title="Drag to reorder; drag sideways to indent" aria-hidden="true">'+ic("grip")+'</span><button type="button" class="tick '+(it.done?'on':'')+'" data-a="tick" role="checkbox" aria-checked="'+it.done+'" aria-label="Mark done">'+ic("check")+'</button><span class="mw iw"><span class="mir'+(it.done?' done':'')+'" aria-hidden="true"><span class="mi">'+mirrorHTML(it.t)+'</span></span><input class="itxt'+(it.done?' done':'')+'" type="text" value="'+esc(it.t)+'" placeholder="List item" aria-label="List item"></span><button type="button" class="ibtn" data-a="rm" aria-label="Remove item" style="width:28px;height:28px">'+ic("x")+'</button></li>';
   }).join('');
   if(focus!=null){var f=$("#eItems").querySelectorAll(".itxt")[focus];if(f)f.focus()}
 }
@@ -925,7 +935,7 @@ function noteText(n){
   var out=[];
   if(n.title.trim())out.push(n.title.trim());
   var body="";
-  if(n.type==="list")body=n.items.filter(function(i){return i.t.trim()}).map(function(i){return i.t.trim()}).join("\n");
+  if(n.type==="list")body=n.items.filter(function(i){return i.t.trim()}).map(function(i){return ind(i)+i.t.trim()}).join("\n");
   else body=n.body.trim();
   if(body){if(out.length)out.push("");out.push(body)}
   return out.join("\n");
@@ -956,30 +966,30 @@ $("#eSelAll").onclick=function(){
 };
 $("#eSelCancel").onclick=function(){selMode=false;selSet=new Set();paintEditor()};
 $("#eSelCopy").onclick=function(){
-  var txt=draft.items.filter(function(_,i){return selSet.has(i)}).map(function(i){return i.t.trim()}).join("\n");
+  var txt=draft.items.filter(function(_,i){return selSet.has(i)}).map(function(i){return ind(i)+i.t.trim()}).join("\n");
   var btn=$("#eSelCopy");
   copyText(txt,function(){btn.textContent="Copied";setTimeout(updateSelBar,1600)},function(){toast("Could not copy.")});
 };
-$("#eMoreBtn").onclick=function(){var h=$("#eMore").hidden;$("#eMore").hidden=!h;this.setAttribute("aria-expanded",String(h))};
+$("#eMoreBtn").onclick=function(){var h=$("#eMore").hidden;$("#eMore").hidden=!h;this.setAttribute("aria-expanded",String(h));if(h)$("#sheetBox").scrollTop=0};
 $("#eTitle").addEventListener("input",function(e){draft.title=e.target.value;scheduleSave()});
 $("#eBody").addEventListener("input",function(e){draft.body=e.target.value;paintMir(e.target);autosize();scheduleSave()});
 $("#ePin").onclick=function(){draft.pinned=!draft.pinned;if(draft.pinned)draft.archived=false;paintEditor()};
 $("#eArchive").onclick=function(){draft.archived=!draft.archived;if(draft.archived)draft.pinned=false;closeEditor(true,draft.archived?"Note archived":"Note unarchived")};
 $("#eTrash").onclick=function(){if(!get(draft.id)){closeEditor(false);return}draft.trashed=true;draft.pinned=false;closeEditor(true,"Moved to Trash")};
-$("#eDone").onclick=function(){closeEditor(true)};
+$("#eBack").onclick=function(){closeEditor(true)};
 $("#eSwatches").addEventListener("click",function(e){var b=e.target.closest("[data-color]");if(!b)return;draft.color=b.dataset.color;paintEditor()});
 $("#eType").onclick=function(){selMode=false;
   if(draft.type==="text"){
-    draft.items=draft.body.split("\n").filter(function(l){return l.trim()}).map(function(l){return {t:l.trim(),done:false}});
+    draft.items=draft.body.split("\n").filter(function(l){return l.trim()}).map(function(l){return {t:l.trim(),done:false,lvl:/^(\t|\s{2,})/.test(l)?1:0}});fixLv(draft.items);
     if(!draft.items.length)draft.items=[{t:"",done:false}];
     draft.body="";draft.type="list";
   }else{
-    draft.body=draft.items.map(function(i){return i.t}).filter(Boolean).join("\n");
+    draft.body=draft.items.filter(function(i){return i.t}).map(function(i){return ind(i)+i.t}).join("\n");
     draft.items=[];draft.type="text";$("#eBody").value=draft.body;
   }
   paintEditor();autosize();
 };
-$("#eAdd").onclick=function(){draft.items.push({t:"",done:false});paintItems(draft.items.length-1)};
+$("#eAdd").onclick=function(){var lst=draft.items[draft.items.length-1];draft.items.push({t:"",done:false,lvl:lst?lst.lvl:0});paintItems(draft.items.length-1)};
 $("#eItems").addEventListener("input",function(e){
   var li=e.target.closest("li");if(li&&e.target.classList.contains("itxt")){draft.items[+li.dataset.i].t=e.target.value;paintMir(e.target);scheduleSave()}
 });
@@ -991,7 +1001,14 @@ $("#eItems").addEventListener("keydown",function(e){
     if(j>=0&&j<draft.items.length){var tmp=draft.items[i];draft.items[i]=draft.items[j];draft.items[j]=tmp;paintItems(j)}
     return;
   }
-  if(e.key==="Enter"){e.preventDefault();draft.items.splice(i+1,0,{t:"",done:false});paintItems(i+1)}
+  if(e.key==="Tab"){
+    e.preventDefault();
+    if(e.shiftKey){if(draft.items[i].lvl){draft.items[i].lvl=0;paintItems(i)}}
+    else if(i>0&&!draft.items[i].lvl&&!hasKids(i)){draft.items[i].lvl=1;paintItems(i)}
+    return;
+  }
+  if(e.key==="Enter"){e.preventDefault();draft.items.splice(i+1,0,{t:"",done:false,lvl:draft.items[i].lvl});paintItems(i+1)}
+  else if(e.key==="Backspace"&&e.target.value===""&&draft.items[i].lvl){e.preventDefault();draft.items[i].lvl=0;paintItems(i)}
   else if(e.key==="Backspace"&&e.target.value===""&&draft.items.length>1){e.preventDefault();draft.items.splice(i,1);paintItems(Math.max(0,i-1))}
 });
 $("#eItems").addEventListener("paste",function(e){
@@ -1000,44 +1017,64 @@ $("#eItems").addEventListener("paste",function(e){
   if(!t||t.indexOf("\n")<0)return;
   var added=t.split(/\r?\n/).map(function(l){
     var done=/\[[xX]\]|[☑✓]/.test(l.slice(0,8));
-    return {t:l.replace(/^\s*(?:[-*•]\s*)?(?:\[[ xX]\]\s*|[☐☑✓○]\s*)?/,"").trim(),done:done};
+    return {lvl:/^(\t|\s{2,})/.test(l)?1:0,t:l.replace(/^\s*(?:[-*•]\s*)?(?:\[[ xX]\]\s*|[☐☑✓○]\s*)?/,"").trim(),done:done};
   }).filter(function(x){return x.t});
+  var base=draft.items[+li.dataset.i];if(added.length&&!base.t.trim()&&base.lvl&&!added[0].lvl)added[0].lvl=1;
   if(!added.length)return;
   e.preventDefault();
   var i=+li.dataset.i,empty=!draft.items[i].t.trim();
   Array.prototype.splice.apply(draft.items,[empty?i:i+1,empty?1:0].concat(added));
   paintItems(i+(empty?0:1)+added.length-1);
 });
+function hasKids(i){return !!draft.items[i+1]&&draft.items[i+1].lvl===1&&!draft.items[i].lvl}
 var rd=null;
 $("#eItems").addEventListener("pointerdown",function(e){
   var g=e.target.closest(".grip");if(!g||selMode)return;
   var li=g.closest("li"),lis=Array.prototype.slice.call($("#eItems").children);
-  var rects=lis.map(function(x){var r=x.getBoundingClientRect();return {h:r.height,c:r.top+r.height/2}});
-  var from=lis.indexOf(li);
-  rd={li:li,lis:lis,rects:rects,from:from,to:from,sy:e.clientY,pid:e.pointerId};
+  var rects=lis.map(function(x){var r=x.getBoundingClientRect();return {h:r.height,t:r.top,c:r.top+r.height/2}});
+  var from=lis.indexOf(li),kids=0;
+  if(!draft.items[from].lvl)while(draft.items[from+kids+1]&&draft.items[from+kids+1].lvl)kids++;
+  var last=rects[from+kids];
+  rd={li:li,lis:lis,rects:rects,from:from,kids:kids,to:from,sy:e.clientY,sx:e.clientX,pid:e.pointerId,
+      base:draft.items[from].lvl,lvl:draft.items[from].lvl,bh:last.t+last.h-rects[from].t+4};
   try{g.setPointerCapture(e.pointerId)}catch(x){}
-  li.classList.add("lifting");e.preventDefault();
+  for(var k=0;k<=kids;k++)lis[from+k].classList.add("lifting");
+  e.preventDefault();
 });
 $("#eItems").addEventListener("pointermove",function(e){
   if(!rd||e.pointerId!==rd.pid)return;
-  var dy=e.clientY-rd.sy,from=rd.from,r0=rd.rects[from];
-  rd.li.style.transform="translateY("+dy+"px)";
+  var dy=e.clientY-rd.sy,dx=e.clientX-rd.sx,from=rd.from,kids=rd.kids,r0=rd.rects[from];
+  var k,inBlock=function(j){return j>=from&&j<=from+kids};
+  for(k=0;k<=kids;k++)rd.lis[from+k].style.transform="translateY("+dy+"px)";
+  /* slot = how many of the other items sit above the dragged one's centre */
   var center=r0.c+dy,to=0;
-  rd.rects.forEach(function(r,j){if(j!==from&&r.c<center)to++});
+  rd.rects.forEach(function(r,j){if(!inBlock(j)&&r.c<center)to++});
   rd.to=to;
-  var shift=r0.h+4;
+  /* sideways drag sets the level; a parent carrying sub-items stays top level */
+  var lvl=rd.base;
+  if(!kids){if(dx>24)lvl=1;else if(dx<-24)lvl=0}
+  if(to===0)lvl=0;
+  rd.lvl=lvl;
+  if(!kids)rd.li.style.marginLeft=(lvl?26:0)+"px";
+  var oi=0;
   rd.lis.forEach(function(x,j){
-    if(j===from)return;
+    if(inBlock(j))return;
     var t=0;
-    if(from<to&&j>from&&j<=to)t=-shift;else if(from>to&&j>=to&&j<from)t=shift;
+    if(from<=to-1&&oi>=from&&oi<=to-1)t=-rd.bh;else if(to<from&&oi>=to&&oi<from)t=rd.bh;
     x.style.transform=t?"translateY("+t+"px)":"";
+    oi++;
   });
 });
 function endReorder(e,commit){
   if(!rd||e.pointerId!==rd.pid)return;
   var r=rd;rd=null;
-  r.lis.forEach(function(x){x.style.transform="";x.classList.remove("lifting")});
-  if(commit&&r.to!==r.from){var it=draft.items.splice(r.from,1)[0];draft.items.splice(r.to,0,it);paintItems()}
+  r.lis.forEach(function(x){x.style.transform="";x.style.marginLeft="";x.classList.remove("lifting")});
+  if(!commit)return;
+  if(r.to===r.from&&r.lvl===r.base)return;
+  var blk=draft.items.splice(r.from,r.kids+1);
+  if(!r.kids)blk[0].lvl=r.to===0?0:r.lvl;
+  Array.prototype.splice.apply(draft.items,[r.to,0].concat(blk));
+  paintItems();
 }
 $("#eItems").addEventListener("pointerup",function(e){endReorder(e,true)});
 $("#eItems").addEventListener("pointercancel",function(e){endReorder(e,false)});
@@ -1061,7 +1098,7 @@ var saveT=null;
 function scheduleSave(){if(!draft)return;clearTimeout(saveT);$("#eSaved").textContent="";saveT=setTimeout(persist,500)}
 function cleanDraft(){
   var n=snapshot(draft);
-  if(n.type==="list")n.items=n.items.filter(function(i){return i.t.trim()});
+  if(n.type==="list")n.items=n.items.filter(function(i){return i.t.trim()});fixLv(n.items);
   n.title=n.title.trim();
   return n;
 }
@@ -1079,6 +1116,7 @@ function persist(){
 }
 function closeEditor(save,msg){
   if(!draft)return;
+  if(hist){hist=false;selfBack=true;try{history.back()}catch(e){selfBack=false}}
   clearTimeout(saveT);
   var n=cleanDraft();draft=null;hidePicker();
   $("#sheet").hidden=true;document.body.style.overflow="";
@@ -1096,6 +1134,11 @@ function closeEditor(save,msg){
 function flushNow(){persist();if(dbCol){clearTimeout(timer);flush()}}
 document.addEventListener("visibilitychange",function(){if(document.hidden)flushNow()});
 window.addEventListener("pagehide",flushNow);
+/* phone/browser back button: leave the open note and return to all notes */
+window.addEventListener("popstate",function(){
+  if(selfBack){selfBack=false;return}
+  if(draft){hist=false;closeEditor(true)}
+});
 document.addEventListener("keydown",function(e){
   if(e.key==="Escape"){if(draft)closeEditor(true);else if(!$("#menu").hidden)setMenu(false)}
   var typing=/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||"");
