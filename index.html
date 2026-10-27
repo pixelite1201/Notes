@@ -67,6 +67,12 @@ button{cursor:pointer}
 .chips:empty{display:none}
 .chip{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:3px 11px;font-size:.84rem}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.ilist li.hasrem{flex-wrap:wrap}
+.irem{flex-basis:100%;display:flex;flex-direction:column;gap:8px;padding:6px 0 8px 34px}
+.iremAt{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);min-width:0;max-width:100%;align-self:flex-start}
+.ibtn.act{color:var(--accent)}
+.rem{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+#eRemAt{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);min-width:0;max-width:100%;align-self:flex-start}
 .lbl{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .mrow{display:flex;gap:8px;flex-wrap:wrap}
 .textbtn{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 12px}
@@ -270,11 +276,18 @@ span.mir .mi{white-space:pre}
       <div class="mact">
         <button id="eCopy" class="textbtn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg><span id="eCopyTxt">Copy note</span></button>
         <button id="eLink" class="textbtn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Link to note</button>
+        <button id="eRemBtn" class="textbtn" type="button" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg>Remind me</button>
         <button id="eSelect" class="textbtn" type="button" hidden>Select items</button>
         <button id="eType" class="textbtn" type="button">Switch to checklist</button>
         <button id="ePin" class="textbtn" type="button" aria-pressed="false"><svg class="ic fillable" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v1.5H7V13l3-3z"/><path d="M12 14.5V20"/></svg><span id="ePinTxt">Pin</span></button>
         <button id="eArchive" class="textbtn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="4" rx="1"/><path d="M5 8.5V19h14V8.5M10 12.5h4"/></svg><span id="eArchTxt">Archive</span></button>
         <button id="eTrash" class="textbtn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5"/></svg>Delete</button>
+      </div>
+      <div id="eRem" class="rem" hidden>
+        <span class="lbl">Remind me</span>
+        <input id="eRemAt" type="datetime-local" aria-label="Reminder date and time">
+        <div class="mrow"><button id="eRemIcs" class="textbtn" type="button">Add to calendar</button><button id="eRemG" class="textbtn" type="button">Google Calendar</button></div>
+        <span style="font-size:.8rem;color:var(--muted)">Your calendar app sends the alert, and the event links back to this app.</span>
       </div>
     </div>
     <div id="eBodyW" class="mw"><div id="eBodyM" class="mir" aria-hidden="true"></div><textarea id="eBody" placeholder="Write something…" aria-label="Note text"></textarea></div>
@@ -305,6 +318,7 @@ var P={
   restore:'<path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5"/>',
   x:'<path d="M6 6l12 12M18 6L6 18"/>',
   cal:'<rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+  bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   chev:'<path d="M9 6l6 6-6 6"/>',
   grip:'<circle cx="9" cy="7" r="1.1"/><circle cx="15" cy="7" r="1.1"/><circle cx="9" cy="12" r="1.1"/><circle cx="15" cy="12" r="1.1"/><circle cx="9" cy="17" r="1.1"/><circle cx="15" cy="17" r="1.1"/>',
@@ -736,9 +750,9 @@ function blank(type){
 var hist=false, selfBack=false;
 function openEditor(n,fresh){
   if(!hist){try{history.pushState({ll:1},"");hist=true}catch(e){}}
-  draft=snapshot(n);orig=JSON.stringify(draft);isNew=fresh;
+  draft=snapshot(n);orig=JSON.stringify(draft);isNew=fresh;remItem=null;
   $("#eTitle").value=draft.title;$("#eBody").value=draft.body;
-  $("#eMore").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
+  $("#eMore").hidden=true;$("#eRem").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
   selMode=false;selSet=new Set();
   paintEditor();$("#sheet").hidden=false;$("#fab").hidden=true;
   document.body.style.overflow="hidden";
@@ -749,7 +763,7 @@ function paintEditor(){
   scheduleSave();
   var isList=draft.type==="list";
   $("#sheetBox").className="sheet c-"+draft.color;
-  $("#eBodyW").hidden=isList;paintMir($("#eBody"));$("#eListWrap").hidden=!isList;$("#eSelect").hidden=!isList;$("#eSelBar").hidden=!(isList&&selMode);$("#eAdd").hidden=selMode;
+  $("#eBodyW").hidden=isList;paintMir($("#eBody"));$("#eListWrap").hidden=!isList;$("#eSelect").hidden=!isList;$("#eRemBtn").hidden=isList;if(isList)$("#eRem").hidden=true;$("#eSelBar").hidden=!(isList&&selMode);$("#eAdd").hidden=selMode;
   $("#eType").textContent=isList?"Switch to text":"Switch to checklist";
   $("#ePin").setAttribute("aria-pressed",String(draft.pinned));$("#ePinTxt").textContent=draft.pinned?"Unpin":"Pin";
   $("#eArchTxt").textContent=draft.archived?"Unarchive":"Archive";
@@ -898,7 +912,7 @@ $("#eItems").addEventListener("scroll",function(e){var t=e.target;if(t.classList
 $("#eItems").addEventListener("click",function(e){if(e.target.classList.contains("itxt"))clickField(e)});
 $("#eLink").onclick=function(){
   if(!draft)return;
-  $("#eMore").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
+  $("#eMore").hidden=true;$("#eRem").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
   var f;
   if(draft.type==="list"){
     var all=$("#eItems").querySelectorAll(".itxt");
@@ -916,6 +930,10 @@ function updateSelBar(){
 }
 function fixLv(a){if(a.length&&a[0].lvl)a[0].lvl=0}
 function ind(it){return it.lvl?"  ":""}
+var remItem=null,remVal="";
+function remPanel(){
+  return '<div class="irem"><input type="datetime-local" class="iremAt" value="'+esc(remVal)+'" min="'+localInput(new Date())+'" aria-label="Reminder date and time"><div class="mrow"><button type="button" class="textbtn" data-a="remics">Add to calendar</button><button type="button" class="textbtn" data-a="remg">Google Calendar</button></div></div>';
+}
 function paintItems(focus){
   fixLv(draft.items);
   scheduleSave();
@@ -927,7 +945,8 @@ function paintItems(focus){
     updateSelBar();return;
   }
   $("#eItems").innerHTML=draft.items.map(function(it,i){
-    return '<li data-i="'+i+'"'+(it.lvl?' class="lv1"':'')+'><span class="grip" title="Drag to reorder; drag sideways to indent" aria-hidden="true">'+ic("grip")+'</span><button type="button" class="tick '+(it.done?'on':'')+'" data-a="tick" role="checkbox" aria-checked="'+it.done+'" aria-label="Mark done">'+ic("check")+'</button><span class="mw iw"><span class="mir'+(it.done?' done':'')+'" aria-hidden="true"><span class="mi">'+mirrorHTML(it.t)+'</span></span><input class="itxt'+(it.done?' done':'')+'" type="text" value="'+esc(it.t)+'" placeholder="List item" aria-label="List item"></span><button type="button" class="ibtn" data-a="rm" aria-label="Remove item" style="width:28px;height:28px">'+ic("x")+'</button></li>';
+    var open=(it===remItem),cl=(it.lvl?"lv1":"")+(open?" hasrem":"");
+    return '<li data-i="'+i+'"'+(cl?' class="'+cl+'"':'')+'><span class="grip" title="Drag to reorder; drag sideways to indent" aria-hidden="true">'+ic("grip")+'</span><button type="button" class="tick '+(it.done?'on':'')+'" data-a="tick" role="checkbox" aria-checked="'+it.done+'" aria-label="Mark done">'+ic("check")+'</button><span class="mw iw"><span class="mir'+(it.done?' done':'')+'" aria-hidden="true"><span class="mi">'+mirrorHTML(it.t)+'</span></span><input class="itxt'+(it.done?' done':'')+'" type="text" value="'+esc(it.t)+'" placeholder="List item" aria-label="List item"></span><button type="button" class="ibtn'+(open?' act':'')+'" data-a="rem" aria-label="Remind me about this item" aria-expanded="'+open+'" style="width:28px;height:28px">'+ic("bell")+'</button><button type="button" class="ibtn" data-a="rm" aria-label="Remove item" style="width:28px;height:28px">'+ic("x")+'</button>'+(open?remPanel():'')+'</li>';
   }).join('');
   if(focus!=null){var f=$("#eItems").querySelectorAll(".itxt")[focus];if(f)f.focus()}
 }
@@ -940,6 +959,74 @@ function noteText(n){
   if(body){if(out.length)out.push("");out.push(body)}
   return out.join("\n");
 }
+/* ---- reminders: hand the note to the phone's calendar ---- */
+function pad2(n){return (n<10?"0":"")+n}
+function lcl(d){return d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+"T"+pad2(d.getHours())+pad2(d.getMinutes())+"00"}
+function localInput(d){return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+"T"+pad2(d.getHours())+":"+pad2(d.getMinutes())}
+function icsEsc(t){return String(t).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n")}
+function icsFold(l){
+  var out=[],cur="",n=0;
+  Array.from(l).forEach(function(ch){
+    var b=encodeURIComponent(ch).replace(/%../g,"x").length;
+    if(n+b>73){out.push(cur);cur=" ";n=1}
+    cur+=ch;n+=b;
+  });
+  out.push(cur);return out.join("\r\n");
+}
+function remInfo(v,title,details){
+  var st=v?new Date(v):null;
+  if(!st||isNaN(st)){toast("Pick a date and time");return null}
+  if(st.getTime()<Date.now()-60000){toast("That time has already passed");return null}
+  title=String(title||"Note").slice(0,100);
+  return {s:st,e:new Date(st.getTime()+15*60000),title:title,details:details.length>1500?details.slice(0,1500)+"…":details,url:location.href.split("#")[0]};
+}
+function noteRemInfo(){
+  var txt=noteText(draft).trim();
+  return remInfo($("#eRemAt").value,(draft.title||"").trim()||txt.split("\n")[0],txt);
+}
+/* a checklist item: its sub-items go in the description, with the note's title for context */
+function itemRemInfo(it,v){
+  var idx=draft.items.indexOf(it),lines=[];
+  if(!it.lvl)for(var k=idx+1;draft.items[k]&&draft.items[k].lvl;k++)if(draft.items[k].t.trim())lines.push("• "+draft.items[k].t.trim());
+  var head=(draft.title||"").trim()?"From: "+draft.title.trim():"";
+  return remInfo(v,it.t.trim()||"List item",[head,lines.join("\n")].filter(Boolean).join("\n\n"));
+}
+function sendIcs(r){
+  var data=makeIcs(r),name="reminder-"+stamp()+".ics",file=null;
+  try{file=new File([data],name,{type:"text/calendar"})}catch(e){}
+  if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:r.title}).catch(function(e){if(!e||e.name!=="AbortError"){download(data,name,"text/calendar");toast("Open the downloaded file to add it")}});
+  }else{download(data,name,"text/calendar");toast("Open the downloaded file to add it")}
+}
+function openGoogle(r){
+  var tz="";try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+  var u="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(r.title)+"&dates="+lcl(r.s)+"/"+lcl(r.e)+"&details="+encodeURIComponent(remDesc(r,800))+(tz?"&ctz="+encodeURIComponent(tz):"");
+  window.open(u,"_blank","noopener");
+}
+function defaultRemTime(){var d=new Date();d.setMinutes(0,0,0);d.setHours(d.getHours()+1);return localInput(d)}
+function remDesc(r,max){
+  var d=max&&r.details.length>max?r.details.slice(0,max)+"…":r.details;
+  return d+(d?"\n\n":"")+"Open Loose Leaf: "+r.url;
+}
+function makeIcs(r){
+  var stamp=new Date().toISOString().replace(/[-:]|\.\d{3}/g,"");
+  return [
+    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Loose Leaf//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT",
+    "UID:"+draft.id+"-"+Date.now()+"@looseleaf","DTSTAMP:"+stamp,"DTSTART:"+lcl(r.s),"DTEND:"+lcl(r.e),
+    "SUMMARY:"+icsEsc(r.title),"DESCRIPTION:"+icsEsc(remDesc(r)),"URL:"+r.url,
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(r.title),"TRIGGER:PT0M","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"
+  ].map(icsFold).join("\r\n")+"\r\n";
+}
+$("#eRemBtn").onclick=function(){
+  var p=$("#eRem"),open=p.hidden;p.hidden=!open;this.setAttribute("aria-expanded",String(open));
+  if(open){
+    $("#eRemAt").min=localInput(new Date());
+    if(!$("#eRemAt").value||new Date($("#eRemAt").value)<new Date())$("#eRemAt").value=defaultRemTime();
+  }
+};
+$("#eRemIcs").onclick=function(){var r=noteRemInfo();if(!r)return;$("#eRem").hidden=true;sendIcs(r)};
+$("#eRemG").onclick=function(){var r=noteRemInfo();if(!r)return;$("#eRem").hidden=true;openGoogle(r)};
 function copyText(txt,ok,fail){
   function fallback(){
     var ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="position:fixed;opacity:0;top:0;left:0";
@@ -956,7 +1043,7 @@ $("#eCopy").onclick=function(){
 };
 $("#eSelect").onclick=function(){
   selMode=true;selSet=new Set();
-  $("#eMore").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
+  $("#eMore").hidden=true;$("#eRem").hidden=true;$("#eMoreBtn").setAttribute("aria-expanded","false");
   paintEditor();
 };
 $("#eSelAll").onclick=function(){
@@ -990,6 +1077,7 @@ $("#eType").onclick=function(){selMode=false;
   paintEditor();autosize();
 };
 $("#eAdd").onclick=function(){var lst=draft.items[draft.items.length-1];draft.items.push({t:"",done:false,lvl:lst?lst.lvl:0});paintItems(draft.items.length-1)};
+$("#eItems").addEventListener("change",function(e){if(e.target.classList.contains("iremAt"))remVal=e.target.value});
 $("#eItems").addEventListener("input",function(e){
   var li=e.target.closest("li");if(li&&e.target.classList.contains("itxt")){draft.items[+li.dataset.i].t=e.target.value;paintMir(e.target);scheduleSave()}
 });
@@ -1007,7 +1095,16 @@ $("#eItems").addEventListener("keydown",function(e){
     else if(i>0&&!draft.items[i].lvl&&!hasKids(i)){draft.items[i].lvl=1;paintItems(i)}
     return;
   }
-  if(e.key==="Enter"){e.preventDefault();draft.items.splice(i+1,0,{t:"",done:false,lvl:draft.items[i].lvl});paintItems(i+1)}
+  if(e.key==="Enter"){
+    if(e.isComposing)return;
+    e.preventDefault();
+    /* split at the cursor: text after it moves to the new item below */
+    var inp=e.target,v=inp.value,a=inp.selectionStart==null?v.length:inp.selectionStart,z=inp.selectionEnd==null?a:inp.selectionEnd;
+    draft.items[i].t=v.slice(0,a);
+    draft.items.splice(i+1,0,{t:v.slice(z),done:false,lvl:draft.items[i].lvl});
+    paintItems(i+1);
+    var ni=$("#eItems").querySelectorAll(".itxt")[i+1];if(ni){try{ni.setSelectionRange(0,0)}catch(x){}}
+  }
   else if(e.key==="Backspace"&&e.target.value===""&&draft.items[i].lvl){e.preventDefault();draft.items[i].lvl=0;paintItems(i)}
   else if(e.key==="Backspace"&&e.target.value===""&&draft.items.length>1){e.preventDefault();draft.items.splice(i,1);paintItems(Math.max(0,i-1))}
 });
@@ -1087,6 +1184,17 @@ $("#eItems").addEventListener("click",function(e){
   var b=e.target.closest("[data-a]");if(!b)return;
   var i=+b.closest("li").dataset.i;
   if(b.dataset.a==="tick"){draft.items[i].done=!draft.items[i].done;paintItems()}
+  else if(b.dataset.a==="rem"){
+    var it=draft.items[i];
+    if(remItem===it)remItem=null;else{remItem=it;if(!remVal||new Date(remVal)<new Date())remVal=defaultRemTime()}
+    paintItems();
+  }
+  else if(b.dataset.a==="remics"||b.dataset.a==="remg"){
+    var inp=b.closest("li").querySelector(".iremAt"),r=itemRemInfo(draft.items[i],inp?inp.value:remVal);
+    if(!r)return;
+    remItem=null;paintItems();
+    if(b.dataset.a==="remics")sendIcs(r);else openGoogle(r);
+  }
   else if(b.dataset.a==="rm"){draft.items.splice(i,1);if(!draft.items.length)draft.items.push({t:"",done:false});paintItems()}
 });
 $("#sheet").addEventListener("click",function(e){
@@ -1171,8 +1279,8 @@ function bkPaint(){
   $("#bkStatus").textContent=bk.last?"Last backup "+bkAgo(bk.last):"Not backed up yet";
 }
 function stamp(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-function download(data,name){
-  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:"application/json"}));a.download=name;
+function download(data,name,mime){
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:mime||"application/json"}));a.download=name;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(a.href)},4000);
 }
